@@ -1,0 +1,25 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: radar-api
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/radar?useUnicode=true&characterEncoding=utf8&sslMode=PREFERRED&allowPublicKeyRetrieval=true
+    username: ${DB_USER:radar_user}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none   # 表由 Python 阶段维护，Java 不改表结构
+  jackson:
+    time-zone: America/New_York
+
+radar:
+  cors:
+    # 逗号分隔；生产环境改为正式前端域名，如 https://app.example.com
+    allowed-origin-patterns: ${CORS_ORIGINS:http://localhost:*,http://127.0.0.1:*}

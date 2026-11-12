@@ -1,0 +1,603 @@
+openapi: 3.0.3
+info:
+  title: Radar API
+  version: 1.0.0
+  description: API contract for the Radar frontend.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/events:
+    get:
+      summary: List upcoming events
+      parameters:
+        - in: query
+          name: lng
+          schema: { type: number, format: double }
+        - in: query
+          name: lat
+          schema: { type: number, format: double }
+        - in: query
+          name: radius
+          description: Search radius in miles, clamped to 0.1-50.
+          schema: { type: number, format: double, default: 5 }
+        - in: query
+          name: indoor
+          schema: { type: string, enum: [Indoor, Outdoor, Unknown] }
+        - in: query
+          name: tag_id
+          description: Filter by tags. Tags of different categories are combined with AND, tags of the same category with OR (e.g. tag_id=2,4,5 with 2=Kid(age), 4/5=interests means Kid AND (tag 4 OR tag 5)). Unknown ids match nothing. Repeat the parameter (tag_id=1&tag_id=2) or comma-separate (tag_id=1,2).
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: integer, format: int64 }
+        - in: query
+          name: startdate
+          description: Inclusive lower bound (00:00 on this day). If omitted, the current New York time is used. Events with endTime match if their time interval overlaps the requested range; otherwise startTime must be within the range.
+          schema: { type: string, format: date, example: "2026-11-07" }
+        - in: query
+          name: enddate
+          description: Inclusive upper date, through the end of the day. If omitted, no upper date is specified. Must not be before startdate (else 400).
+          schema: { type: string, format: date, example: "2026-11-09" }
+        - in: query
+          name: title
+          description: Case-insensitive keyword; returns events whose title contains it.
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        "200":
+          description: Upcoming events, optionally filtered by location and tag.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Event" }
+  /api/events/{id}:
+    get:
+      summary: Get an event
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: Event details.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Event" }
+        "404": { description: Event not found. }
+  /api/anonymous-profiles:
+    post:
+      summary: Create or update an anonymous user profile (location and all tags)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnonymousProfileInput" }
+      responses:
+        "200":
+          description: Saved profile.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnonymousProfile" }
+        "400": { description: Validation error. }
+  /api/anonymous-profiles/{deviceToken}:
+    get:
+      summary: Get an anonymous user profile
+      parameters:
+        - $ref: "#/components/parameters/DeviceToken"
+      responses:
+        "200":
+          description: Profile with tags.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnonymousProfile" }
+        "404": { description: Profile not found. }
+  /api/anonymous-profiles/{deviceToken}/exists:
+    get:
+      summary: Check whether a profile exists
+      parameters:
+        - $ref: "#/components/parameters/DeviceToken"
+      responses:
+        "200":
+          description: Existence flag.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exists: { type: boolean }
+  /api/crawl-sources:
+    get:
+      summary: List crawl sources
+      responses:
+        "200":
+          description: Crawl sources.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CrawlSource" }
+    post:
+      summary: Create a crawl source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CrawlSourceInput" }
+      responses:
+        "201":
+          description: Created crawl source.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CrawlSource" }
+  /api/crawl-sources/{id}:
+    get:
+      summary: Get a crawl source
+      parameters:
+        - $ref: "#/components/parameters/CrawlSourceId"
+      responses:
+        "200":
+          description: Crawl source.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CrawlSource" }
+    put:
+      summary: Update a crawl source
+      parameters:
+        - $ref: "#/components/parameters/CrawlSourceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CrawlSourceInput" }
+      responses:
+        "200":
+          description: Updated crawl source.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CrawlSource" }
+    delete:
+      summary: Delete a crawl source
+      parameters:
+        - $ref: "#/components/parameters/CrawlSourceId"
+      responses:
+        "204": { description: Deleted. }
+  /api/event-images/{eventId}:
+    get:
+      summary: Get an event image association
+      parameters:
+        - $ref: "#/components/parameters/EventImageEventId"
+      responses:
+        "200":
+          description: Event-image association.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventImage" }
+    put:
+      summary: Assign or clear an event image
+      parameters:
+        - $ref: "#/components/parameters/EventImageEventId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventImageInput" }
+      responses:
+        "200":
+          description: Updated association.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EventImage" }
+    delete:
+      summary: Remove the event image association
+      parameters:
+        - $ref: "#/components/parameters/EventImageEventId"
+      responses:
+        "204": { description: Deleted. }
+  /api/exclude-rules:
+    get:
+      summary: List exclusion rules
+      responses:
+        "200":
+          description: Exclusion rules.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ExcludeRule" }
+    post:
+      summary: Create an exclusion rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExcludeRuleInput" }
+      responses:
+        "201":
+          description: Created rule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExcludeRule" }
+  /api/exclude-rules/{id}:
+    get:
+      summary: Get an exclusion rule
+      parameters:
+        - $ref: "#/components/parameters/RuleId"
+      responses:
+        "200":
+          description: Exclusion rule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExcludeRule" }
+    put:
+      summary: Update an exclusion rule
+      parameters:
+        - $ref: "#/components/parameters/RuleId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExcludeRuleInput" }
+      responses:
+        "200":
+          description: Updated rule.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExcludeRule" }
+    delete:
+      summary: Delete an exclusion rule
+      parameters:
+        - $ref: "#/components/parameters/RuleId"
+      responses:
+        "204": { description: Deleted. }
+  /api/images:
+    get:
+      summary: List image metadata
+      responses:
+        "200":
+          description: Images.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Image" }
+    post:
+      summary: Create image metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImageInput" }
+      responses:
+        "201":
+          description: Created image metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Image" }
+  /api/images/{id}:
+    get:
+      summary: Get image metadata
+      parameters:
+        - $ref: "#/components/parameters/ImageId"
+      responses:
+        "200":
+          description: Image metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Image" }
+    put:
+      summary: Update image metadata
+      parameters:
+        - $ref: "#/components/parameters/ImageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImageInput" }
+      responses:
+        "200":
+          description: Updated image metadata.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Image" }
+    delete:
+      summary: Delete image metadata
+      parameters:
+        - $ref: "#/components/parameters/ImageId"
+      responses:
+        "204": { description: Deleted. }
+  /api/tag-suggestions:
+    get:
+      summary: List tag suggestions for review
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, approved, rejected], default: pending }
+      responses:
+        "200":
+          description: Suggestions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TagSuggestion" }
+  /api/tag-suggestions/{id}:
+    get:
+      summary: Get a tag suggestion
+      parameters:
+        - $ref: "#/components/parameters/SuggestionId"
+      responses:
+        "200":
+          description: Suggestion.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TagSuggestion" }
+  /api/tag-suggestions/{id}/approve:
+    post:
+      summary: Approve suggestion and add the tag if needed
+      parameters:
+        - $ref: "#/components/parameters/SuggestionId"
+      responses:
+        "200":
+          description: Approved suggestion.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TagSuggestion" }
+  /api/tag-suggestions/{id}/reject:
+    post:
+      summary: Reject a suggestion
+      parameters:
+        - $ref: "#/components/parameters/SuggestionId"
+      responses:
+        "200":
+          description: Rejected suggestion.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TagSuggestion" }
+  /api/tags:
+    get:
+      summary: List tags
+      parameters:
+        - in: query
+          name: category
+          schema: { type: string }
+      responses:
+        "200":
+          description: Tags.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Tag" }
+    post:
+      summary: Create a tag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TagInput" }
+      responses:
+        "201":
+          description: Created tag.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tag" }
+  /api/tags/{id}:
+    get:
+      summary: Get a tag
+      parameters:
+        - $ref: "#/components/parameters/TagId"
+      responses:
+        "200":
+          description: Tag.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tag" }
+    put:
+      summary: Update a tag
+      parameters:
+        - $ref: "#/components/parameters/TagId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TagInput" }
+      responses:
+        "200":
+          description: Updated tag.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tag" }
+    delete:
+      summary: Delete a tag
+      parameters:
+        - $ref: "#/components/parameters/TagId"
+      responses:
+        "204": { description: Deleted. }
+components:
+  parameters:
+    EventId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, format: int32 }
+    EventImageEventId:
+      in: path
+      name: eventId
+      required: true
+      schema: { type: integer, format: int32 }
+    DeviceToken:
+      in: path
+      name: deviceToken
+      required: true
+      schema: { type: string }
+    CrawlSourceId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, format: int32 }
+    RuleId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, format: int32 }
+    ImageId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, format: int64 }
+    SuggestionId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, format: int32 }
+    TagId:
+      in: path
+      name: id
+      required: true
+      schema: { type: integer, format: int64 }
+  schemas:
+    Event:
+      type: object
+      properties:
+        id: { type: integer }
+        sourceId: { type: integer, nullable: true }
+        title: { type: string }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time, nullable: true }
+        locationName: { type: string, nullable: true }
+        longitude: { type: number, nullable: true }
+        latitude: { type: number, nullable: true }
+        indoorOutdoor: { type: string, enum: [Indoor, Outdoor, Unknown], nullable: true }
+        bookingUrl: { type: string, nullable: true }
+        parentTips: { type: string, nullable: true }
+        imageUrl: { type: string, nullable: true }
+        tagNames: { type: string, nullable: true, description: "Names of all tags of this event, comma-joined, e.g. Kid,Storytime. null if the event has no tags.", example: "Kid,Storytime" }
+    AnonymousProfileInput:
+      type: object
+      required: [deviceToken]
+      description: Location is given either as latitude/longitude or as zipCode. Tags fully replace the existing set.
+      properties:
+        deviceToken: { type: string, maxLength: 255 }
+        latitude: { type: number, format: double, minimum: -90, maximum: 90, nullable: true }
+        longitude: { type: number, format: double, minimum: -180, maximum: 180, nullable: true }
+        zipCode: { type: string, maxLength: 10, nullable: true, example: "08540" }
+        tags:
+          type: array
+          items: { $ref: "#/components/schemas/AnonymousProfileTag" }
+    AnonymousProfileTag:
+      type: object
+      required: [tagName, tagCategory]
+      properties:
+        tagName: { type: string, maxLength: 50, example: outdoor }
+        tagCategory: { type: string, maxLength: 50, description: "Tag category, e.g. age or eventtype.", example: eventtype }
+    AnonymousProfile:
+      type: object
+      properties:
+        deviceToken: { type: string }
+        latitude: { type: number, format: double, nullable: true }
+        longitude: { type: number, format: double, nullable: true }
+        zipCode: { type: string, nullable: true }
+        tags:
+          type: array
+          items: { $ref: "#/components/schemas/AnonymousProfileTag" }
+        createdAt: { type: string, nullable: true }
+        updatedAt: { type: string, nullable: true }
+    CrawlSource:
+      allOf:
+        - $ref: "#/components/schemas/CrawlSourceInput"
+        - type: object
+          properties:
+            id: { type: integer }
+            createdAt: { type: string, format: date-time, nullable: true }
+            updatedAt: { type: string, format: date-time, nullable: true }
+    CrawlSourceInput:
+      type: object
+      required: [sourceName, targetUrl, regionName]
+      properties:
+        sourceName: { type: string, maxLength: 100 }
+        targetUrl: { type: string }
+        regionName: { type: string, maxLength: 100 }
+        longitude: { type: number, minimum: -180, maximum: 180, nullable: true }
+        latitude: { type: number, minimum: -90, maximum: 90, nullable: true }
+        defaultIndoorOutdoor: { type: string, enum: [Indoor, Outdoor, Unknown] }
+        countyName: { type: string, nullable: true }
+        sourceType: { type: string, nullable: true }
+        pageType: { type: string, nullable: true }
+        maxPages: { type: integer, nullable: true }
+        nextSelector: { type: string, nullable: true }
+        active: { type: boolean, nullable: true }
+        lastCrawledAt: { type: string, format: date-time, nullable: true }
+    EventImage:
+      type: object
+      properties:
+        eventId: { type: integer }
+        imageId: { type: integer, format: int64, nullable: true }
+    EventImageInput:
+      type: object
+      properties:
+        imageId: { type: integer, format: int64, nullable: true }
+    ExcludeRule:
+      allOf:
+        - $ref: "#/components/schemas/ExcludeRuleInput"
+        - type: object
+          properties:
+            id: { type: integer }
+    ExcludeRuleInput:
+      type: object
+      required: [keyword]
+      properties:
+        keyword: { type: string, maxLength: 500 }
+        matchType: { type: string, enum: [contains, exact, regex] }
+        targetField: { type: string, enum: [title, all] }
+        description: { type: string, maxLength: 255, nullable: true }
+        active: { type: boolean }
+    Image:
+      allOf:
+        - $ref: "#/components/schemas/ImageInput"
+        - type: object
+          properties:
+            id: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    ImageInput:
+      type: object
+      required: [imageUrl]
+      properties:
+        imageUrl: { type: string, maxLength: 1000 }
+        fileName: { type: string, maxLength: 255, nullable: true }
+        mimeType: { type: string, maxLength: 50, nullable: true }
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+    TagSuggestion:
+      type: object
+      properties:
+        id: { type: integer }
+        suggestedTagName: { type: string }
+        tagCategory: { type: string }
+        newTag: { type: boolean }
+        keyword: { type: string }
+        matchType: { type: string }
+        targetField: { type: string }
+        sourceEventId: { type: integer, nullable: true }
+        evidence: { type: string, nullable: true }
+        confidence: { type: number, nullable: true }
+        status: { type: string, enum: [pending, approved, rejected] }
+        createdAt: { type: string, format: date-time }
+        reviewedAt: { type: string, format: date-time, nullable: true }
+    Tag:
+      allOf:
+        - $ref: "#/components/schemas/TagInput"
+        - type: object
+          properties:
+            id: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
+    TagInput:
+      type: object
+      required: [tagName, tagCategory]
+      properties:
+        tagName: { type: string, maxLength: 100 }
+        tagCategory: { type: string, maxLength: 50 }
+        description: { type: string, maxLength: 255, nullable: true }
+        active: { type: boolean }
